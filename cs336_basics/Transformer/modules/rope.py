@@ -29,14 +29,13 @@ class RoPE(torch.nn.Module):
     #    print("x shape:", x.shape)
     #    print("token_pos shape:", token_pos.shape)
     #    print("R shape:", self.R.shape)
-       # x_split = rearrange(x, "... (d_kk r2) -> ... d_kk r2", r2 = 2)
-       x_split = rearrange(x, "h s (d_pair r2) -> h s d_pair r2", r2 = 2)
-
-       rot = self.R[token_pos]
-    #    print("rot shape:", rot.shape)
-       output = einsum(rot, x_split, "s d_pair r1 r2, h s d_pair r2 -> h s d_pair r1")
-       result = rearrange(output, "h s d_pair r1 -> h s (d_pair r1)")
-       return result
+    # x_split = rearrange(x, "... (d_kk r2) -> ... d_kk r2", r2 = 2)
+        x_split = rearrange(x, "... (d_pair r2) -> ... d_pair r2", r2 = 2)
+        rot = self.R[token_pos]
+        print("rot shape:", rot.shape)
+        output = einsum(rot, x_split, "... s d_pair r1 r2, ... h s d_pair r2 -> ... h s d_pair r1")
+        result = rearrange(output, "... h s d_pair r1 -> ... h s (d_pair r1)")
+        return result
 
 # x shape: torch.Size([4, 12, 64])
 # token_pos shape: torch.Size([12])

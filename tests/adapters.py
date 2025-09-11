@@ -155,7 +155,7 @@ def run_multihead_self_attention(
         implementation with the given QKV projection weights and input features.
     """
 
-    module = mha_module.MultiheadSelfAttention(d_model, num_heads).to(device)
+    module = mha_module.MultiheadSelfAttention(d_model, num_heads)
     module.q_proj_linear.weight.data = q_proj_weight
     module.k_proj_linear.weight.data = k_proj_weight
     module.v_proj_linear.weight.data = v_proj_weight
@@ -200,7 +200,12 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_out"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    module = mha_module.MultiheadSelfAttention(d_model, num_heads, max_seq_len, theta)
+    module.q_proj_linear.weight.data = q_proj_weight
+    module.k_proj_linear.weight.data = k_proj_weight
+    module.v_proj_linear.weight.data = v_proj_weight
+    module.out_proj_linear.weight.data = o_proj_weight
+    return module(in_features, token_positions=token_positions)
 
 
 def run_rope(
