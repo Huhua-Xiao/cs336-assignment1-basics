@@ -1,8 +1,6 @@
 import torch
-from torch import Tensor
 from torch.nn.parameter import Parameter
 from torch.nn import functional as F, init
-import math
 
 class Embedding(torch.nn.Module):
     def __init__(self, vocab_size:int, d_model: int, device: torch.device=None, dtype: torch.dtype=None):

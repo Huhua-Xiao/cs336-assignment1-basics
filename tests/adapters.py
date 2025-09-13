@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterable
 from typing import IO, Any, BinaryIO
+import math
 
 import numpy.typing as npt
 import torch
@@ -16,6 +17,9 @@ import cs336_basics.Transformer.modules.rmsnorm as rmsnorm_module
 import cs336_basics.Transformer.functions as functions
 import cs336_basics.Transformer.attention.MultiheadSelfAttention as mha_module
 import cs336_basics.Transformer.modules.rope as rope_module
+import cs336_basics.Transformer.modules.swiglu as swiglu_module
+import cs336_basics.Transformer.transformer_block as transformer_block_module
+import cs336_basics.Transformer.transformer_lm as transformer_lm_module
 
 device = torch.device("mps")
 
@@ -97,8 +101,13 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
-   
-    raise NotImplementedError
+
+    module = swiglu_module.SwiGLU(d_model, d_ff, device=device)
+    module.w1.weight.data = w1_weight
+    module.w2.weight.data = w2_weight
+    module.w3.weight.data = w3_weight
+
+    return module(in_features)
 
 
 def run_scaled_dot_product_attention(
@@ -314,7 +323,18 @@ def run_transformer_block(
         Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+    module = transformer_block_module.TransformerBlock(d_model, num_heads, d_ff, max_seq_len, theta, device=device)
+    module.attention.q_proj_linear.weight.data = weights["attn.q_proj.weight"].to(device)
+    module.attention.k_proj_linear.weight.data = weights["attn.k_proj.weight"].to(device)
+    module.attention.v_proj_linear.weight.data = weights["attn.v_proj.weight"].to(device)
+    module.attention.out_proj_linear.weight.data = weights["attn.output_proj.weight"].to(device)
+    module.norm1.weight.data = weights["ln1.weight"].to(device)
+    module.norm2.weight.data = weights["ln2.weight"].to(device)
+    module.ffn.w1.weight.data = weights["ffn.w1.weight"].to(device)
+    module.ffn.w2.weight.data = weights["ffn.w2.weight"].to(device)
+    module.ffn.w3.weight.data = weights["ffn.w3.weight"].to(device)
+    in_features = in_features.to(device)
+    return module(in_features)
 
 
 def run_transformer_lm(
@@ -327,7 +347,7 @@ def run_transformer_lm(
     rope_theta: float,
     weights: dict[str, Tensor],
     in_indices: Int[Tensor, " batch_size sequence_length"],
-) -> Float[Tensor, " batch_size sequence_length vocab_size"]:
+) -> Float[Tensor, " batch_size sequence_length vocab_size"]: 
     """Given the weights of a Transformer language model and input indices,
     return the output of running a forward pass on the input indices.
 
@@ -396,7 +416,27 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+
+    module = transformer_lm_module.Transformer(d_model, num_heads, d_ff, context_length, vocab_size, num_layers, device, rope_theta)
+    module.embedding.weight.data = weights["token_embeddings.weight"].to(device)
+
+    for i in range(num_layers):
+        layer_prefix = f"layers.{i}."
+        block = module.transformer_layer[i]
+        block.attention.q_proj_linear.weight.data = weights[f"{layer_prefix}attn.q_proj.weight"].to(device)
+        block.attention.k_proj_linear.weight.data = weights[f"{layer_prefix}attn.k_proj.weight"].to(device)
+        block.attention.v_proj_linear.weight.data = weights[f"{layer_prefix}attn.v_proj.weight"].to(device)
+        block.attention.out_proj_linear.weight.data = weights[f"{layer_prefix}attn.output_proj.weight"].to(device)
+        block.norm1.weight.data = weights[f"{layer_prefix}ln1.weight"].to(device)
+        block.norm2.weight.data = weights[f"{layer_prefix}ln2.weight"].to(device)
+        block.ffn.w1.weight.data = weights[f"{layer_prefix}ffn.w1.weight"].to(device)
+        block.ffn.w2.weight.data = weights[f"{layer_prefix}ffn.w2.weight"].to(device)
+        block.ffn.w3.weight.data = weights[f"{layer_prefix}ffn.w3.weight"].to(device)
+
+    module.norm.weight.data = weights["ln_final.weight"].to(device)
+    module.output_linear.weight.data = weights["lm_head.weight"].to(device)
+
+    return module(in_indices)
 
 
 def run_rmsnorm(
@@ -463,7 +503,11 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
-    raise NotImplementedError
+    tensor_data = torch.from_numpy(dataset).to(device)
+    random_indices = torch.randint(0, len(tensor_data) - context_length, (batch_size,), device=device)
+    input_sequences = torch.stack([tensor_data[i : i + context_length] for i in random_indices])
+    labels = torch.stack([tensor_data[i + 1 : i + context_length + 1] for i in random_indices])
+    return input_sequences, labels    
 
 
 def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, " ..."]:
@@ -480,6 +524,7 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         softmax normalizing the specified `dim`.
     """
     return functions.softmax(in_features, dim)
+
 
 def run_cross_entropy(
     inputs: Float[Tensor, " batch_size vocab_size"], targets: Int[Tensor, " batch_size"]
@@ -508,14 +553,14 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    raise NotImplementedError
+    functions.gradient_clipping(parameters, max_l2_norm)
 
 
 def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    return torch.optim.AdamW
 
 
 def run_get_lr_cosine_schedule(
@@ -543,7 +588,7 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    return functions.lr_cosine_schedule(it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters)
 
 
 def run_save_checkpoint(
@@ -562,8 +607,10 @@ def run_save_checkpoint(
             we've completed.
         out (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialize the model, optimizer, and iteration to.
     """
-    raise NotImplementedError
-
+    # checkpoint = {"model_state_dict": model.state_dict(), "optimizer_state_dict": optimizer.state_dict(), "iteration": iteration}
+    # torch.save(checkpoint, out)
+    functions.save_checkpoint(model, optimizer, iteration, out)
+    
 
 def run_load_checkpoint(
     src: str | os.PathLike | BinaryIO | IO[bytes],
@@ -583,7 +630,7 @@ def run_load_checkpoint(
     Returns:
         int: the previously-serialized number of iterations.
     """
-    raise NotImplementedError
+    return functions.load_checkpoint(src, model, optimizer)
 
 
 def get_tokenizer(

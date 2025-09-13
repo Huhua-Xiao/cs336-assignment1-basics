@@ -7,7 +7,7 @@ from einops import reduce
 
 
 class RMSNorm(torch.nn.Module):
-    def __init__(self, d_model: int, eps: float = 1e-8, device: torch.device=None, dtype: torch.dtype=None):
+    def __init__(self, d_model: int, eps: float = 1e-5, device: torch.device=None, dtype: torch.dtype=None):
         super().__init__()
 
         factory_kwargs = {"device": device, "dtype": dtype}

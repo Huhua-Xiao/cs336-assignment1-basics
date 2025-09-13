@@ -1,7 +1,6 @@
 import torch
 from torch import Tensor
 from einops import einsum
-from .modules.linear import Linear
 from .attention.MultiheadSelfAttention import MultiheadSelfAttention
 from .modules.swiglu import SwiGLU
 from .modules.rmsnorm import RMSNorm
@@ -23,7 +22,7 @@ class TransformerBlock(torch.nn.Module):
         self.norm2 = RMSNorm(d_model, device=device)
 
     def forward(self, x: Tensor):
-        batch, seq_len, d_model = x.shape
+        batch, seq_len, _ = x.shape
         
         token_positions = torch.arange(seq_len, device=self.device).unsqueeze(0).expand(batch, -1)
 

@@ -1,11 +1,8 @@
 import torch
 from torch import Tensor
-from torch.nn.parameter import Parameter
-from torch.nn import functional as F, init
-from typing import Tuple
 from typing_extensions import TypeAlias
 from jaxtyping import Float, Int
-from einops import reduce, einsum
+from einops import einsum
 import math
 
 
@@ -38,3 +35,50 @@ def scaled_dot_product_attention(
     attention_weights = softmax(scores, dim=-1)
     output = einsum(attention_weights, V, " ... queries values, ... values d_v -> ... queries d_v")
     return output
+
+
+def gradient_clipping(parameters, max_l2_norm:float):
+    total_norm = 0.0
+    for p in parameters:
+        if p.grad is not None:
+           total_norm += p.grad.data.norm() ** 2
+    total_norm = total_norm ** 0.5
+
+    if total_norm > max_l2_norm:
+        clip_value = max_l2_norm / total_norm
+        for p in parameters:
+            if p.grad is not None:
+                p.grad.data.mul_(clip_value)
+
+
+def lr_cosine_schedule(it: int,
+    max_learning_rate: float,
+    min_learning_rate: float,
+    warmup_iters: int,
+    cosine_cycle_iters: int,):
+
+    if it < warmup_iters:
+       return max_learning_rate * it / warmup_iters
+
+    if it > cosine_cycle_iters:
+        return min_learning_rate
+    
+    progress = (it - warmup_iters) / (cosine_cycle_iters - warmup_iters)
+    factor = 0.5 * (1 + math.cos(math.pi * progress))
+    return min_learning_rate + (max_learning_rate - min_learning_rate) * factor
+
+
+def save_checkpoint(
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    iteration: int, out):
+
+    checkpoint = {"model_state_dict": model.state_dict(), "optimizer_state_dict": optimizer.state_dict(), "iteration": iteration}
+    torch.save(checkpoint, out)
+
+
+def load_checkpoint(src,  model: torch.nn.Module, optimizer: torch.optim.Optimizer):
+    checkpoint = torch.load(src)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    return checkpoint["iteration"]
