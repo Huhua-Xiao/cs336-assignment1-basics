@@ -6,6 +6,27 @@ For a full description of the assignment, see the assignment handout at
 If you see any issues with the assignment handout or code, please feel free to
 raise a GitHub issue or open a pull request with a fix.
 
+
+
+### Results
+
+- **All unit tests passed**
+    - **Environment**: Apple M3（CPU, macOS）
+    - **Project summary.** This assignment delivers a from-scratch, testable mini Transformer language model for next-token prediction. The project includes a BPE tokenizer, an end-to-end Transformer LM (embedding → stacked pre-norm blocks → final normalization → vocabulary projection), and the surrounding training/evaluation utilities (loss, softmax, optimizer, LR schedule, checkpointing).
+
+    - **What works.** All provided unit tests pass, validating the model’s forward path, attention mechanics, normalization, feed-forward stack, tokenizer plumbing, and adapter functions. The implementation is organized for clarity and reproducibility rather than speed.
+
+    - **Data & scope.** The repo is set up to use TinyStories and a small OpenWebText sample for experimentation; tests focus on functional correctness, not benchmark performance.
+
+    - **Reproducibility.** The project uses `uv` for environment management. You can verify locally with:
+    ```bash
+    uv run pytest
+
+### Screenshot
+![All unit tests passed](tests_passed.png)
+
+
+
 ## Setup
 
 ### Environment
@@ -47,4 +68,8 @@ gunzip owt_valid.txt.gz
 
 cd ..
 ```
+
+
+
+
 
